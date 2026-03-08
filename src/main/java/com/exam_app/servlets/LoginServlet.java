@@ -18,14 +18,14 @@ public class LoginServlet extends HttpServlet {
         User u=null;
         try {
             
-            String email=request.getParameter("email");
+            String email=request.getParameter("email").toLowerCase();
             String pass=request.getParameter("password");
             UserDao dao=new UserDao(ConnectionProvider.connect());
 
             HttpSession session=request.getSession();
             if((u=dao.validate(email,pass))!=null) {
                 
-                session.setAttribute("current_user", u);
+                session.setAttribute("currentUser", u);
                 response.sendRedirect("dashboard.jsp");
             }
             else {

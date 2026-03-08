@@ -30,23 +30,23 @@ public class UserDao {
     }
 
     public boolean userExists(String email) {
-    boolean exists = false;
-    String query = "SELECT 1 FROM users WHERE email = ?";
+        boolean exists = false;
+        String query = "SELECT 1 FROM users WHERE email = ?";
 
-    try (PreparedStatement stmt = this.conn.prepareStatement(query)) {
-        
-        stmt.setString(1, email);
-        try (ResultSet rs = stmt.executeQuery()) {
-            if (rs.next()) {
-                exists = true;
+        try (PreparedStatement stmt = this.conn.prepareStatement(query)) {
+            
+            stmt.setString(1, email);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    exists = true;
+                }
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-    } catch (SQLException e) {
-        e.printStackTrace();
-    }
 
-    return exists;
-}
+        return exists;
+    }
 
     public User validate(String email, String password) {
 
@@ -75,4 +75,5 @@ public class UserDao {
 
         return user;
     }
+
 }
