@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.util.List;
 
 import com.exam_app.entities.Attempt;
+import com.exam_app.helper.ConnectionProvider;
 import java.util.ArrayList;
 public class AttemptsDao {
 
@@ -32,13 +33,13 @@ public class AttemptsDao {
         return count;
     }   
 
-    public int countAttemptsByExam(String email, int examId) {
+    public int countAttemptsByExam(String email, String examname) {
         int count = 0;
         try {
-            String query = "SELECT COUNT(*) FROM attempts WHERE email = ? AND exam_id = ? ";
+            String query = "SELECT COUNT(*) FROM attempts a JOIN mock_tests mt ON a.test_id = mt.test_id JOIN exams e ON mt.exam_id = e.exam_id WHERE a.email = ? AND e.exam_name = ?";
             PreparedStatement pstmt = conn.prepareStatement(query);
             pstmt.setString(1, email);
-            pstmt.setInt(2, examId);
+            pstmt.setString(2, examname);
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
                 count = rs.getInt(1);
@@ -87,21 +88,36 @@ public class AttemptsDao {
         return percentage;
     }
 
-    public List<Attempt> getAllAttemptsByUser(String email) {
+    public List<Attempt> getAllAttempts(String email) {
         List<Attempt> attempts = new ArrayList<>();
         try {
-            String query = "SELECT mt.test_name,a.attempt_id,q.question_id,q.question_text, get_option_text(aa.selected_option,"+
-            "q.option_a, q.option_b, q.option_c, q.option_d ) AS selected_option,get_option_text(q.correct_option,q.option_a, q.option_b, q.option_c, q.option_d) AS correct_option,"+
-            "aa.is_correct FROM attempts a JOIN mock_tests mt ON a.test_id = mt.test_id JOIN attempt_answers aa ON a.attempt_id = aa.attempt_id JOIN questions q " +
-            "ON aa.question_id = q.question_id   WHERE a.email = ? ORDER BY a.attempt_id, q.question_id";
+          // Notice the added space after correct_option before the closing quote
+String query = "SELECT mt.test_name,a.attempt_id,q.question_id,q.question_text, get_option_text(aa.selected_option,"+
+"q.option_a, q.option_b, q.option_c, q.option_d ) AS selected_option,get_option_text(q.correct_option,q.option_a, q.option_b, q.option_c, q.option_d) AS correct_option "+
+"FROM attempts a JOIN mock_tests mt ON a.test_id = mt.test_id JOIN attempt_answers aa ON a.attempt_id = aa.attempt_id JOIN questions q " +
+"ON aa.question_id = q.question_id WHERE a.email = ? ORDER BY a.attempt_id, q.question_id";
 
             PreparedStatement pstmt = conn.prepareStatement(query);
             pstmt.setString(1, email);
             ResultSet rs = pstmt.executeQuery();
             while (rs.next()) {
-                Attempt attempt = new Attempt();
-                String testName = rs.getString("test_name");
-                
+                // Inside your getAllAttempts try block:
+Attempt currentAttempt = null;
+
+while (rs.next()) {
+    int attemptId = rs.getInt("attempt_id");
+    
+    // If it's a new attempt ID, create a new Attempt object
+    if (currentAttempt == null || currentAttempt.getAttemptId() != attemptId) {
+        currentAttempt = new Attempt();
+        currentAttempt.setTestname(rs.getString("test_name"));
+        currentAttempt.setAttemptId(attemptId);
+        attempts.add(currentAttempt);
+    }
+    
+    // Add the question to the current attempt
+    currentAttempt.addQuestion(rs.getString("question_text"), rs.getString("selected_option"), rs.getString("correct_option"));
+}
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -110,20 +126,30 @@ public class AttemptsDao {
         return attempts;        
     }
 
-    public List<Attempt> getAttemptsByExam(String email, int examId) {
+    public List<Attempt> getAttemptsByExam(String email, String examname) {
         List<Attempt> attempts = new ArrayList<>();
         try {
-            String query = "SELECT mt.test_name, a.attempt_id, q.question_id, q.question_text, aa.selected_option, q.correct_option FROM attempts a" +
-                            " JOIN mock_tests mt ON a.test_id = mt.test_id JOIN attempt_answers aa ON a.attempt_id = aa.attempt_id JOIN questions q " +
-                            " ON aa.question_id = q.question_id  WHERE a.email = ? AND a.exam_id = ? ORDER BY a.attempt_id, q.question_id";
+            // Notice the added spaces at the end of the first and second lines
+String query = "SELECT mt.test_name,q.question_id, q.question_text, q.correct_option,aa.selected_option,a.attempt_id " + 
+               "FROM exams e JOIN mock_tests mt ON e.exam_id = mt.exam_id JOIN attempts a ON mt.test_id = a.test_id " + 
+               "JOIN attempt_answers aa ON a.attempt_id = aa.attempt_id JOIN questions q ON aa.question_id = q.question_id " + 
+               "WHERE e.exam_name = ? AND a.email = ? ORDER BY mt.test_name, q.question_id";
             PreparedStatement pstmt = conn.prepareStatement(query);
             pstmt.setString(1, email);
-            pstmt.setInt(2, examId);
+            pstmt.setString(2, examname);
             ResultSet rs = pstmt.executeQuery();
-            while (rs.next()) {
+             while (rs.next()) {
                 Attempt attempt = new Attempt();
                 String testName = rs.getString("test_name");
-                
+                int attemptId = rs.getInt("attempt_id");
+
+                while(rs.next() && rs.getInt("attempt_id") == attemptId && rs.getString("test_name").equals(testName)) {
+                   attempt.addQuestion(rs.getString("question_text"), rs.getString("selected_option"), rs.getString("correct_option"));
+                }
+
+                attempt.setTestname(testName);
+                attempt.setAttemptId(attemptId);
+                attempts.add(attempt);
             }
         } catch (Exception e) {
             e.printStackTrace();

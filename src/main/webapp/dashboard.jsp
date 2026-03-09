@@ -1,7 +1,10 @@
-<%@ page language="java" contentType="text/html; charset=UTF-8"
-    pageEncoding="UTF-8"%>
+<%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8" isELIgnored="false" %>
 <%@ page import="com.exam_app.entities.User" %>
 <%@ page import="com.exam_app.dao.AttemptsDao" %>
+<%@ page import="com.exam_app.helper.ConnectionProvider" %>
+<%@ page import="java.util.List" %>
+<%@ page import="com.exam_app.entities.Attempt" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
 <!DOCTYPE html>
 <html>
 <head>
@@ -74,6 +77,21 @@
             border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
+
+        .scrollable-history {
+            max-height: 500px; /* You can adjust this height to fit your screen nicely */
+            overflow-y: auto;
+            padding-right: 10px; /* Adds a little space so the scrollbar doesn't overlap text */
+        }
+        
+        /* Optional: Makes the scrollbar look slightly cleaner in webkit browsers (Chrome/Edge/Safari) */
+        .scrollable-history::-webkit-scrollbar {
+            width: 6px;
+        }
+        .scrollable-history::-webkit-scrollbar-thumb {
+            background-color: #ccc;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <%
@@ -83,10 +101,12 @@
        response.sendRedirect("login.jsp");
    } else {
 
-        AttemptsDao attemptsDao=new AttemptsDao();
-        int totalAttempts=attemptsDao.getTotalAttemptsByUser(user.getId());
-        float highestPercentage=attemptsDao.getHighestPercentage(user.getEmail(), 1);
-        float avgPercentage=attemptsDao.getAvgPercentage(user.getEmail(), 1);
+        AttemptsDao attemptsDao=new AttemptsDao(ConnectionProvider.connect());
+        //int totalAttempts=attemptsDao.countAttempts(user.getEmail());
+       // float highestPercentage=attemptsDao.getHighestPercentage(user.getEmail(), 1);
+       // float avgPercentage=attemptsDao.getAvgPercentage(user.getEmail(), 1);
+        List<Attempt> attempts = attemptsDao.getAllAttempts(user.getEmail());
+        request.setAttribute("attempts", attempts); 
    }
 
 %>
@@ -107,77 +127,60 @@
 
                     <div class="col-md-3">
                         <h5>Attempted</h5>
-                        <p class="fs-4"><%= totalAttempts %></p>
+                        <p class="fs-4">10</p>
                     </div>
 
                     <div class="col-md-3">
                         <h5>Highest Percentage</h5>
-                        <p class="fs-4"><%= highestPercentage %></p>
+                        <p class="fs-4">85.0</p>
                     </div>
 
                     <div class="col-md-3">
                         <h5>Average</h5>
-                        <p class="fs-4"><%= avgPercentage %></p>
+                        <p class="fs-4">75.0</p>
                     </div>
 
                 </div>
             </div>
 
-            <div class="accordion" id="examAccordion">
-
-                <div class="accordion-item">
-
-                    <h2 class="accordion-header">
-
-                        <button
-                            class="accordion-button collapsed"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#exam1">
-
-                            Java Mock Test 1
-
-                        </button>
-
-                    </h2>
-
-
-                    <div
-                        id="exam1"
-                        class="accordion-collapse collapse"
-                        data-bs-parent="#examAccordion">
-
-                        <div class="accordion-body">
-
-
-                            <!-- Question Grid -->
-
-                            <div class="question-grid">
-
-                                <div class="qbox correct" onclick="showQuestion('exam1',1)"></div>
-                                <div class="qbox wrong" onclick="showQuestion('exam1',2)"></div>
-                                <div class="qbox correct" onclick="showQuestion('exam1',3)"></div>
-                                <div class="qbox unattempted" onclick="showQuestion('exam1',4)"></div>
-                                <div class="qbox wrong" onclick="showQuestion('exam1',5)"></div>
-                                <div class="qbox correct" onclick="showQuestion('exam1',6)"></div>
-                                <div class="qbox correct" onclick="showQuestion('exam1',7)"></div>
-                                <div class="qbox wrong" onclick="showQuestion('exam1',8)"></div>
-                                <div class="qbox unattempted" onclick="showQuestion('exam1',9)"></div>
-                                <div class="qbox correct" onclick="showQuestion('exam1',10)"></div>
-
+            <div class="card shadow p-4 mb-4">
+                <h4 class="mb-4">Exam Attempts History</h4>
+                
+                <div class="scrollable-history">
+                    <div class="accordion" id="examAccordion">
+                        <c:forEach var="attempt" items="${attempts}">
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" data-bs-toggle="collapse" data-bs-target="#attempt${attempt.attemptId}">
+                                        ${attempt.testname} 
+                                    </button>
+                                </h2>
+                                <div id="attempt${attempt.attemptId}" class="accordion-collapse collapse" data-bs-parent="#examAccordion">
+                                    <div class="accordion-body">
+                                        <div class="question-grid">
+                                            <c:forEach var="question" items="${attempt.questionTexts}" varStatus="status">
+                                                <c:set var="userAns" value="${attempt.userAnswers[status.index]}" />
+                                                <c:set var="correctAns" value="${attempt.correctAnswers[status.index]}" />
+                                                <c:set var="boxClass">
+                                                    <c:choose>
+                                                        <c:when test="${userAns eq correctAns and not empty userAns}">correct</c:when>
+                                                        <c:when test="${empty userAns or userAns eq 'Not Attempted'}">unattempted</c:when>
+                                                        <c:otherwise>wrong</c:otherwise>
+                                                    </c:choose>
+                                                </c:set>
+                                                <div class="qbox ${boxClass}" onclick="showQuestion('attempt${attempt.attemptId}', ${status.index + 1})"></div>
+                                            </c:forEach>
+                                        </div>
+                                        <div id="attempt${attempt.attemptId}-question" class="question-display">
+                                            Click a question square to view the question.
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-
-                            <!-- Question Display -->
-                            <div
-                                id="exam1-question"
-                                class="question-display">
-
-                                Click a question square to view the question.
-
-                            </div>
-                        </div>
+                        </c:forEach>
                     </div>
-                </div>
-            </div>
+                </div> </div>
+            
         </div>
     </div>
 </div>
@@ -188,49 +191,49 @@
 </script>
 
 <script>
+    const examData = {};
+    <%
+    List<Attempt> attemptsList = (List<Attempt>) request.getAttribute("attempts");
+    if (attemptsList != null) {
+        for (Attempt currentAttempt : attemptsList) {
+            out.print("examData['attempt" + currentAttempt.getAttemptId() + "'] = {");
+            List<String> questions = currentAttempt.getQuestionTexts();
+            List<String> answers = currentAttempt.getUserAnswers();
+            List<String> correctAnswers = currentAttempt.getCorrectAnswers(); // Fetch correct answers
 
-    const examData = {
-
-        exam1: {
-
-            1: {
-                q: "What is JVM?",
-                opt: "Selected Option: A"
-            },
-
-            2: {
-                q: "Which keyword is used for inheritance?",
-                opt: "Selected Option: extends"
-            },
-
-            3: {
-                q: "Which collection is synchronized?",
-                opt: "Selected Option: Vector"
-            },
-
-            4: {
-                q: "What is polymorphism?",
-                opt: "Not Attempted"
-            },
-
-            5: {
-                q: "What is JDK?",
-                opt: "Selected Option: Java Development Kit"
+            for (int i = 0; i < questions.size(); i++) {
+                String q = questions.get(i).replace("\"", "\\\"").replace("\n", "\\n");
+                String opt = answers.get(i) != null ? answers.get(i).replace("\"", "\\\"") : "Not Attempted";
+                // Escape the correct answer string just like the others
+                String correctOpt = correctAnswers.get(i) != null ? correctAnswers.get(i).replace("\"", "\\\"") : "N/A"; 
+                
+                // Add the 'correct' property to our JSON object
+                out.print((i+1) + ": { q: \"" + q + "\", opt: \"" + opt + "\", correct: \"" + correctOpt + "\" }");
+                if (i < questions.size() - 1) out.print(",");
             }
-
+            out.println("};");
         }
-
-    };
-
+    }
+    %>
 
     function showQuestion(examId, qno) {
         let q = examData[examId][qno];
+        
+        // Optional: Let's add some bootstrap text colors based on whether they got it right or wrong
+        let userAnsColor = "text-danger"; // Default to red (wrong)
+        if (q.opt === q.correct) {
+            userAnsColor = "text-success"; // Green if correct
+        } else if (q.opt === "Not Attempted") {
+            userAnsColor = "text-secondary"; // Gray if unattempted
+        }
+
+        // Update the HTML inside the display div
         document.getElementById(examId + "-question").innerHTML =
             "<h5>Question " + qno + "</h5>" +
-            "<p>" + q.q + "</p>" +
-            "<b>" + q.opt + "</b>";
+            "<p class='mb-3'>" + q.q + "</p>" +
+            "<p class='mb-1 " + userAnsColor + "'><b>Your Answer:</b> " + q.opt + "</p>" +
+            "<p class='text-success'><b>Correct Answer:</b> " + q.correct + "</p>";
     }
-
 </script>
 </body>
 </html>
